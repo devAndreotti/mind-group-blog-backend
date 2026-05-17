@@ -1,7 +1,10 @@
 import cors from "cors";
 import express from "express";
 import { env } from "./config/env";
+import articleRoutes from "./routes/article.routes";
 import authRoutes from "./routes/auth.routes";
+import categoryRoutes from "./routes/category.routes";
+import tagRoutes from "./routes/tag.routes";
 import { errorHandler, notFound } from "./middlewares/error.middleware";
 
 export const app = express();
@@ -26,6 +29,9 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/articles", articleRoutes);
+app.use("/api/categories", categoryRoutes);
+app.use("/api/tags", tagRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
