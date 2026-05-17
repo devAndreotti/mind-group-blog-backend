@@ -1,0 +1,3 @@
+-- Runtime schema reference. `../../dump.sql` is the importable delivery dump.
+-- Import command:
+-- mysql -u root -p < dump.sql
