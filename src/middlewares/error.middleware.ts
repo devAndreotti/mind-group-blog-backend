@@ -8,6 +8,19 @@ type ExpectedError = Error & {
   type?: string;
 };
 
+const databaseUnavailableCodes = new Set([
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "EHOSTUNREACH",
+  "ETIMEDOUT",
+  "PROTOCOL_CONNECTION_LOST",
+  "ER_ACCESS_DENIED_ERROR",
+  "ER_BAD_DB_ERROR",
+  "ER_CON_COUNT_ERROR",
+  "ER_DBACCESS_DENIED_ERROR",
+  "ER_HOST_NOT_PRIVILEGED"
+]);
+
 export const notFound = (_req: Request, _res: Response, next: NextFunction) => {
   next(new HttpError(404, "Rota nao encontrada."));
 };
@@ -30,6 +43,10 @@ export const errorHandler = (
 
   if (expected.code === "ER_DUP_ENTRY") {
     return res.status(409).json({ message: "Registro duplicado." });
+  }
+
+  if (expected.code && databaseUnavailableCodes.has(expected.code)) {
+    return res.status(503).json({ message: "Banco de dados indisponivel." });
   }
 
   console.error(error);

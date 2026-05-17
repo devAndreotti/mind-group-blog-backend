@@ -97,7 +97,9 @@ const main = async () => {
 
   server = app.listen(smokePort);
 
-  const health = await send("/health");
+  const health = await send<{ database: string; status: string }>("/health");
+  assert(health.payload.status === "ok", "health nao retornou status ok");
+  assert(health.payload.database === "ok", "health nao validou conexao com banco");
   assert(!health.headers.has("x-powered-by"), "header x-powered-by nao deveria existir");
   assert(
     health.headers.get("x-content-type-options") === "nosniff",
