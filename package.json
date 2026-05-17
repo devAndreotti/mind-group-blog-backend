@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
+    "smoke": "tsx scripts/smoke.ts",
     "start": "node dist/server.js"
   },
   "keywords": [
