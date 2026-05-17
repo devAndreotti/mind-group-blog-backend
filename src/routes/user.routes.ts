@@ -3,6 +3,7 @@ import { RowDataPacket } from "mysql2";
 import { pool, type DbUser } from "../database/connection";
 import { requireAuth } from "../middlewares/auth.middleware";
 import { assert } from "../utils/http";
+import { readObject, readOptionalString, readRequiredString } from "../utils/validation";
 
 const router = Router();
 
@@ -40,16 +41,15 @@ router.get("/me", requireAuth, async (req, res, next) => {
 
 router.put("/me", requireAuth, async (req, res, next) => {
   try {
-    const { name, email, bio } = req.body as {
-      name?: string;
-      email?: string;
-      bio?: string;
-    };
-    const nameValue = name?.trim() ?? "";
-    const emailValue = email?.toLowerCase() ?? "";
+    const input = readObject(req.body);
+    const nameValue = readRequiredString(input, "name", "Nome");
+    const emailValue = readRequiredString(input, "email", "Email").toLowerCase();
+    const bio = readOptionalString(input, "bio", "Bio");
 
     assert(nameValue.length >= 3, 400, "Nome deve ter pelo menos 3 caracteres.");
+    assert(nameValue.length <= 150, 400, "Nome deve ter no maximo 150 caracteres.");
     assert(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue), 400, "Email invalido.");
+    assert(emailValue.length <= 150, 400, "Email deve ter no maximo 150 caracteres.");
     assert(!bio || bio.length <= 500, 400, "Bio deve ter no maximo 500 caracteres.");
 
     await pool.execute(
