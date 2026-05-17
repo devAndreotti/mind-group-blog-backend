@@ -9,6 +9,7 @@ const baseUrl = `http://127.0.0.1:${smokePort}/api`;
 const smokeId = Date.now();
 const primaryEmail = `smoke.primary.${smokeId}@example.com`;
 const secondaryEmail = `smoke.secondary.${smokeId}@example.com`;
+const massAssignmentEmail = `smoke.mass.${smokeId}@example.com`;
 const password = "Smoke@123";
 const createdTitle = `Smoke artigo ${smokeId}`;
 const updatedTitle = `Smoke artigo editado ${smokeId}`;
@@ -26,10 +27,10 @@ const assert = (condition: unknown, message: string) => {
   }
 };
 
-const request = async <T = JsonRecord>(
+const send = async <T = JsonRecord>(
   path: string,
   options: RequestInit & { expectedStatus?: number } = {}
-): Promise<T> => {
+): Promise<{ headers: Headers; payload: T; status: number; text: string }> => {
   const { expectedStatus = 200, headers, body, ...rest } = options;
   const response = await fetch(`${baseUrl}${path}`, {
     ...rest,
@@ -47,8 +48,26 @@ const request = async <T = JsonRecord>(
     fail(`${path} expected ${expectedStatus}, got ${response.status}: ${text}`);
   }
 
-  return payload;
+  return { headers: response.headers, payload, status: response.status, text };
 };
+
+const request = async <T = JsonRecord>(
+  path: string,
+  options: RequestInit & { expectedStatus?: number } = {}
+): Promise<T> => {
+  const response = await send<T>(path, options);
+  return response.payload;
+};
+
+const validArticlePayload = (categoryId: number, suffix: string) => ({
+  title: `Smoke artigo ${suffix} ${smokeId}`,
+  summary: "Resumo do smoke test com tamanho minimo.",
+  content:
+    "Conteudo criado pelo smoke test para provar cadastro, login e criacao autenticada de artigo.",
+  categoryId,
+  tags: [`smoke-${smokeId}`],
+  coverImage: null
+});
 
 const authHeader = (token: string) => ({
   Authorization: `Bearer ${token}`
@@ -61,7 +80,11 @@ const cleanup = async () => {
     await pool.execute("DELETE FROM articles WHERE id = ?", [createdArticleId]);
   }
 
-  await pool.execute("DELETE FROM users WHERE email IN (?, ?)", [primaryEmail, secondaryEmail]);
+  await pool.execute("DELETE FROM users WHERE email IN (?, ?, ?)", [
+    primaryEmail,
+    secondaryEmail,
+    massAssignmentEmail
+  ]);
   await pool.execute("DELETE FROM tags WHERE name IN (?, ?)", [
     `smoke-${smokeId}`,
     `smoke-editado-${smokeId}`
@@ -74,7 +97,35 @@ const main = async () => {
 
   server = app.listen(smokePort);
 
-  await request("/health");
+  const health = await send("/health");
+  assert(!health.headers.has("x-powered-by"), "header x-powered-by nao deveria existir");
+  assert(
+    health.headers.get("x-content-type-options") === "nosniff",
+    "helmet nao aplicou x-content-type-options"
+  );
+
+  await send("/auth/login", {
+    method: "POST",
+    expectedStatus: 400,
+    body: "{"
+  });
+
+  await request("/auth/register", {
+    method: "POST",
+    expectedStatus: 400,
+    body: JSON.stringify({ name: ["Smoke"], email: {}, password: 123, confirmPassword: 123 })
+  });
+
+  await request("/auth/login", {
+    method: "POST",
+    expectedStatus: 400,
+    body: JSON.stringify({ email: [], password: [] })
+  });
+
+  await request("/health", {
+    expectedStatus: 403,
+    headers: { Origin: "https://evil.example" }
+  });
 
   await request("/articles", {
     method: "POST",
@@ -104,6 +155,19 @@ const main = async () => {
   );
   assert(registerResponse.token, "cadastro nao retornou token");
 
+  const massAssignmentResponse = await request<{ user: { role: string } }>("/auth/register", {
+    method: "POST",
+    expectedStatus: 201,
+    body: JSON.stringify({
+      name: "Smoke Mass",
+      email: massAssignmentEmail,
+      password,
+      confirmPassword: password,
+      role: "admin"
+    })
+  });
+  assert(massAssignmentResponse.user.role === "member", "cadastro aceitou role enviado pelo cliente");
+
   const loginResponse = await request<{ token: string; user: { id: number; email: string } }>(
     "/auth/login",
     {
@@ -126,6 +190,56 @@ const main = async () => {
       confirmPassword: password
     })
   });
+
+  await request("/users/me", {
+    method: "PUT",
+    expectedStatus: 409,
+    headers: authHeader(loginResponse.token),
+    body: JSON.stringify({
+      name: "Smoke Primary",
+      email: secondaryEmail,
+      bio: "Bio valida"
+    })
+  });
+
+  await request("/articles?categoryId=abc", { expectedStatus: 400 });
+  await request("/articles?page=abc", { expectedStatus: 400 });
+
+  const invalidArticlePayloads = [
+    {
+      body: { ...validArticlePayload(categories[0].id, "categoria-invalida"), categoryId: "1 OR 1=1" }
+    },
+    {
+      body: { ...validArticlePayload(categories[0].id, "tags-invalidas"), tags: [{}, null, 123, "ok"] }
+    },
+    {
+      body: { ...validArticlePayload(categories[0].id, "titulo-grande"), title: "A".repeat(5000) }
+    },
+    {
+      body: { ...validArticlePayload(categories[0].id, "resumo-grande"), summary: "S".repeat(100000) }
+    },
+    {
+      body: {
+        ...validArticlePayload(categories[0].id, "html-cover"),
+        coverImage: `data:text/html;base64,${Buffer.from("<script>alert(1)</script>").toString("base64")}`
+      }
+    },
+    {
+      body: {
+        ...validArticlePayload(categories[0].id, "svg-cover"),
+        coverImage: `data:image/svg+xml;base64,${Buffer.from("<svg onload=alert(1)></svg>").toString("base64")}`
+      }
+    }
+  ];
+
+  for (const invalidPayload of invalidArticlePayloads) {
+    await request("/articles", {
+      method: "POST",
+      expectedStatus: 400,
+      headers: authHeader(loginResponse.token),
+      body: JSON.stringify(invalidPayload.body)
+    });
+  }
 
   const createResponse = await request<{ id: number }>("/articles", {
     method: "POST",
@@ -208,9 +322,18 @@ const main = async () => {
         status: "ok",
         checked: [
           "health",
+          "security headers",
+          "malformed JSON",
+          "auth type validation",
+          "CORS rejection",
           "unauthorized article create",
           "register",
+          "mass assignment guard",
           "login",
+          "duplicate email guard",
+          "query validation",
+          "article payload validation",
+          "cover image validation",
           "create article",
           "list/search article",
           "read article",
