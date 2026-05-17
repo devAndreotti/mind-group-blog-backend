@@ -1,5 +1,6 @@
 import cors from "cors";
 import express from "express";
+import helmet from "helmet";
 import { env } from "./config/env";
 import articleRoutes from "./routes/article.routes";
 import authRoutes from "./routes/auth.routes";
@@ -11,6 +12,8 @@ import { HttpError } from "./utils/http";
 
 export const app = express();
 
+app.disable("x-powered-by");
+app.use(helmet());
 app.use(
   cors({
     origin: (origin, callback) => {
