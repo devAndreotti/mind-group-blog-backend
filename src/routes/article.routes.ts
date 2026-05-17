@@ -3,16 +3,42 @@ import { ResultSetHeader, RowDataPacket } from "mysql2";
 import { pool } from "../database/connection";
 import { requireAuth } from "../middlewares/auth.middleware";
 import { assert, HttpError } from "../utils/http";
+import {
+  readNullableInteger,
+  readNullableString,
+  readObject,
+  readRequiredString,
+  readStringArray
+} from "../utils/validation";
 
 const router = Router();
 
 type ArticleInput = {
-  title?: string;
-  summary?: string;
-  content?: string;
-  categoryId?: number | null;
-  tags?: string[];
-  coverImage?: string | null;
+  title: string;
+  summary: string;
+  content: string;
+  categoryId: number | null;
+  tags: string[];
+  coverImage: string | null;
+};
+
+const readArticleInput = (body: unknown): ArticleInput => {
+  const input = readObject(body);
+  const title = readRequiredString(input, "title", "Titulo");
+  const summary = readRequiredString(input, "summary", "Resumo");
+  const content = readRequiredString(input, "content", "Conteudo");
+  const categoryId = readNullableInteger(input, "categoryId", "Categoria");
+  const tags = readStringArray(input, "tags", "Tags", { maxItems: 10, maxLength: 80 });
+  const coverImage = readNullableString(input, "coverImage", "Imagem de capa");
+
+  assert(title.length >= 3, 400, "Titulo deve ter pelo menos 3 caracteres.");
+  assert(title.length <= 255, 400, "Titulo deve ter no maximo 255 caracteres.");
+  assert(summary.length >= 10, 400, "Resumo deve ter pelo menos 10 caracteres.");
+  assert(summary.length <= 1000, 400, "Resumo deve ter no maximo 1000 caracteres.");
+  assert(content.length >= 20, 400, "Conteudo deve ter pelo menos 20 caracteres.");
+  assert(content.length <= 8000, 400, "Conteudo deve ter no maximo 8000 caracteres.");
+
+  return { title, summary, content, categoryId, tags, coverImage };
 };
 
 const dataUrlToBuffer = (value?: string | null) => {
@@ -111,13 +137,19 @@ const syncTags = async (articleId: number, tagNames: string[] = []) => {
 
 router.get("/", async (req, res, next) => {
   try {
-    const page = Math.max(Number(req.query.page ?? 1), 1);
+    const pageValue = req.query.page === undefined ? 1 : Number(req.query.page);
+    assert(Number.isInteger(pageValue) && pageValue > 0, 400, "Pagina invalida.");
+    const page = pageValue;
     const limit = 9;
     const offset = (page - 1) * limit;
     const search = typeof req.query.search === "string" ? `%${req.query.search}%` : null;
     const categoryId = req.query.categoryId ? Number(req.query.categoryId) : null;
     const filters: string[] = [];
     const values: Array<string | number> = [];
+
+    if (req.query.categoryId) {
+      assert(categoryId !== null && Number.isInteger(categoryId) && categoryId > 0, 400, "Categoria invalida.");
+    }
 
     if (search) {
       filters.push("(a.title LIKE ? OR a.summary LIKE ? OR a.content LIKE ?)");
@@ -168,21 +200,13 @@ router.get("/:id", async (req, res, next) => {
 
 router.post("/", requireAuth, async (req, res, next) => {
   try {
-    const input = req.body as ArticleInput;
-    const title = input.title?.trim() ?? "";
-    const summary = input.summary?.trim() ?? "";
-    const content = input.content?.trim() ?? "";
-
-    assert(title.length >= 3, 400, "Titulo deve ter pelo menos 3 caracteres.");
-    assert(summary.length >= 10, 400, "Resumo deve ter pelo menos 10 caracteres.");
-    assert(content.length >= 20, 400, "Conteudo deve ter pelo menos 20 caracteres.");
-    assert(content.length <= 8000, 400, "Conteudo deve ter no maximo 8000 caracteres.");
+    const input = readArticleInput(req.body);
 
     const { buffer, mimeType } = dataUrlToBuffer(input.coverImage);
     const [result] = await pool.execute<ResultSetHeader>(
       `INSERT INTO articles (title, summary, content, cover_image, cover_image_mime_type, category_id, author_id)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [title, summary, content, buffer, mimeType, input.categoryId ?? null, req.user!.id]
+      [input.title, input.summary, input.content, buffer, mimeType, input.categoryId, req.user!.id]
     );
 
     await syncTags(result.insertId, input.tags);
@@ -196,17 +220,9 @@ router.post("/", requireAuth, async (req, res, next) => {
 router.put("/:id", requireAuth, async (req, res, next) => {
   try {
     const articleId = Number(req.params.id);
-    const input = req.body as ArticleInput;
-    const title = input.title?.trim() ?? "";
-    const summary = input.summary?.trim() ?? "";
-    const content = input.content?.trim() ?? "";
+    const input = readArticleInput(req.body);
 
     await ensureArticleAccess(articleId, req.user!.id, req.user!.role);
-
-    assert(title.length >= 3, 400, "Titulo deve ter pelo menos 3 caracteres.");
-    assert(summary.length >= 10, 400, "Resumo deve ter pelo menos 10 caracteres.");
-    assert(content.length >= 20, 400, "Conteudo deve ter pelo menos 20 caracteres.");
-    assert(content.length <= 8000, 400, "Conteudo deve ter no maximo 8000 caracteres.");
 
     const { buffer, mimeType } = dataUrlToBuffer(input.coverImage);
 
@@ -219,7 +235,7 @@ router.put("/:id", requireAuth, async (req, res, next) => {
            cover_image_mime_type = ?,
            category_id = ?
        WHERE id = ?`,
-      [title, summary, content, buffer, mimeType, input.categoryId ?? null, articleId]
+      [input.title, input.summary, input.content, buffer, mimeType, input.categoryId, articleId]
     );
 
     await syncTags(articleId, input.tags);

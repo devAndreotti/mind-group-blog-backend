@@ -4,6 +4,7 @@ import { ResultSetHeader, RowDataPacket } from "mysql2";
 import { pool, type DbUser } from "../database/connection";
 import { assert, HttpError } from "../utils/http";
 import { signToken } from "../utils/jwt";
+import { readObject, readOptionalString, readRequiredString } from "../utils/validation";
 
 const router = Router();
 
@@ -21,19 +22,18 @@ const publicUser = (user: DbUser) => ({
 
 router.post("/register", async (req, res, next) => {
   try {
-    const { name, email, password, confirmPassword } = req.body as {
-      name?: string;
-      email?: string;
-      password?: string;
-      confirmPassword?: string;
-    };
-    const nameValue = name?.trim() ?? "";
-    const emailValue = email?.toLowerCase() ?? "";
-    const passwordValue = password ?? "";
+    const input = readObject(req.body);
+    const nameValue = readRequiredString(input, "name", "Nome");
+    const emailValue = readRequiredString(input, "email", "Email").toLowerCase();
+    const passwordValue = readRequiredString(input, "password", "Senha");
+    const confirmPassword = readOptionalString(input, "confirmPassword", "Confirmacao de senha");
 
     assert(nameValue.length >= 3, 400, "Nome deve ter pelo menos 3 caracteres.");
+    assert(nameValue.length <= 150, 400, "Nome deve ter no maximo 150 caracteres.");
     assert(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue), 400, "Email invalido.");
+    assert(emailValue.length <= 150, 400, "Email deve ter no maximo 150 caracteres.");
     assert(passwordValue.length >= 6, 400, "Senha deve ter pelo menos 6 caracteres.");
+    assert(passwordValue.length <= 128, 400, "Senha deve ter no maximo 128 caracteres.");
 
     if (confirmPassword !== undefined) {
       assert(passwordValue === confirmPassword, 400, "As senhas nao conferem.");
@@ -69,11 +69,12 @@ router.post("/register", async (req, res, next) => {
 
 router.post("/login", async (req, res, next) => {
   try {
-    const { email, password } = req.body as { email?: string; password?: string };
-    const emailValue = email?.toLowerCase() ?? "";
-    const passwordValue = password ?? "";
+    const input = readObject(req.body);
+    const emailValue = readRequiredString(input, "email", "Email").toLowerCase();
+    const passwordValue = readRequiredString(input, "password", "Senha");
 
     assert(emailValue, 400, "Email e obrigatorio.");
+    assert(emailValue.length <= 150, 400, "Email deve ter no maximo 150 caracteres.");
     assert(passwordValue, 400, "Senha e obrigatoria.");
 
     const [users] = await pool.execute<UserRow[]>(
