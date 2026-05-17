@@ -12,6 +12,8 @@ import {
 } from "../utils/validation";
 
 const router = Router();
+const ALLOWED_COVER_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const MAX_COVER_IMAGE_BYTES = 2 * 1024 * 1024;
 
 type ArticleInput = {
   title: string;
@@ -46,14 +48,24 @@ const dataUrlToBuffer = (value?: string | null) => {
     return { buffer: null, mimeType: null };
   }
 
-  const match = value.match(/^data:(.+);base64,(.+)$/);
+  const match = value.match(/^data:([^;,]+);base64,([A-Za-z0-9+/=]+)$/);
   if (!match) {
     throw new HttpError(400, "Imagem de capa deve estar em formato data URL base64.");
   }
 
+  const mimeType = match[1].toLowerCase();
+  if (!ALLOWED_COVER_IMAGE_TYPES.has(mimeType)) {
+    throw new HttpError(400, "Imagem de capa deve ser PNG, JPG ou WebP.");
+  }
+
+  const buffer = Buffer.from(match[2], "base64");
+  if (buffer.length > MAX_COVER_IMAGE_BYTES) {
+    throw new HttpError(400, "Imagem de capa deve ter no maximo 2MB.");
+  }
+
   return {
-    mimeType: match[1],
-    buffer: Buffer.from(match[2], "base64")
+    mimeType,
+    buffer
   };
 };
 
