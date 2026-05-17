@@ -7,6 +7,7 @@ import categoryRoutes from "./routes/category.routes";
 import tagRoutes from "./routes/tag.routes";
 import userRoutes from "./routes/user.routes";
 import { errorHandler, notFound } from "./middlewares/error.middleware";
+import { HttpError } from "./utils/http";
 
 export const app = express();
 
@@ -18,7 +19,7 @@ app.use(
         return;
       }
 
-      callback(new Error("Origin not allowed by CORS"));
+      callback(new HttpError(403, "Origem nao permitida pelo CORS."));
     },
     credentials: true
   })
