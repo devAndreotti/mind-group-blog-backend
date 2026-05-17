@@ -5,6 +5,7 @@ import articleRoutes from "./routes/article.routes";
 import authRoutes from "./routes/auth.routes";
 import categoryRoutes from "./routes/category.routes";
 import tagRoutes from "./routes/tag.routes";
+import userRoutes from "./routes/user.routes";
 import { errorHandler, notFound } from "./middlewares/error.middleware";
 
 export const app = express();
@@ -29,6 +30,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/articles", articleRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/tags", tagRoutes);
