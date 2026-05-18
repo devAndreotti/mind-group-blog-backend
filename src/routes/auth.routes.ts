@@ -1,6 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { ResultSetHeader, RowDataPacket } from "mysql2";
+import { v4 as uuidv4 } from "uuid";
 import { pool, type DbUser } from "../database/connection";
 import { assert, HttpError } from "../utils/http";
 import { signToken } from "../utils/jwt";
@@ -90,6 +91,37 @@ router.post("/login", async (req, res, next) => {
 
     const token = signToken({ id: user.id, email: user.email, role: user.role });
     res.json({ token, user: publicUser(user) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/forgot-password", async (req, res, next) => {
+  try {
+    const input = readObject(req.body);
+    const emailValue = readRequiredString(input, "email", "Email").toLowerCase();
+    const resetToken = uuidv4();
+
+    const [users] = await pool.execute<UserRow[]>(
+      "SELECT id FROM users WHERE email = ? LIMIT 1",
+      [emailValue]
+    );
+
+    if (users[0]) {
+      await pool.execute(
+        `UPDATE users
+         SET reset_token = ?, reset_token_expires = DATE_ADD(NOW(), INTERVAL 1 HOUR)
+         WHERE id = ?`,
+        [resetToken, users[0].id]
+      );
+    }
+
+    // Em produção, o token seria enviado por email via Resend/SendGrid
+    // em vez de retornado na resposta.
+    res.json({
+      message: "Se o email existir, um token foi gerado.",
+      reset_token: resetToken
+    });
   } catch (error) {
     next(error);
   }
