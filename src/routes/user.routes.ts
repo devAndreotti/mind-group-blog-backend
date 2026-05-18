@@ -22,7 +22,7 @@ const avatarToDataUrl = (buffer?: Buffer | null, mimeType?: string | null) => {
 const publicProfile = (user: DbUser) => ({
   id: user.id,
   name: user.name,
-  avatar: avatarToDataUrl(user.avatar, user.avatar_mime_type),
+  avatar: avatarToDataUrl(user.avatar, user.avatar_mime),
   bio: user.bio,
   role: user.role,
   createdAt: user.created_at
@@ -70,7 +70,7 @@ router.get("/me", requireAuth, async (req, res, next) => {
       id: users[0].id,
       name: users[0].name,
       email: users[0].email,
-      avatar: avatarToDataUrl(users[0].avatar, users[0].avatar_mime_type),
+      avatar: avatarToDataUrl(users[0].avatar, users[0].avatar_mime),
       bio: users[0].bio,
       role: users[0].role,
       createdAt: users[0].created_at,
@@ -98,7 +98,7 @@ router.put("/me", requireAuth, async (req, res, next) => {
     if (avatar) {
       await pool.execute(
         `UPDATE users
-         SET name = ?, email = ?, bio = ?, avatar = ?, avatar_mime_type = ?
+         SET name = ?, email = ?, bio = ?, avatar = ?, avatar_mime = ?
          WHERE id = ?`,
         [nameValue, emailValue, bio ?? null, avatar.buffer, avatar.mimeType, req.user!.id]
       );
@@ -119,7 +119,7 @@ router.put("/me", requireAuth, async (req, res, next) => {
       id: users[0].id,
       name: users[0].name,
       email: users[0].email,
-      avatar: avatarToDataUrl(users[0].avatar, users[0].avatar_mime_type),
+      avatar: avatarToDataUrl(users[0].avatar, users[0].avatar_mime),
       bio: users[0].bio,
       role: users[0].role,
       createdAt: users[0].created_at,

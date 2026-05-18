@@ -95,7 +95,7 @@ const serializeArticle = async (row: RowDataPacket) => ({
   title: row.title,
   summary: row.summary,
   content: row.content,
-  coverImage: imageToDataUrl(row.cover_image, row.cover_image_mime_type),
+  coverImage: imageToDataUrl(row.cover, row.cover_mime),
   category: row.category_id
     ? {
         id: row.category_id,
@@ -216,7 +216,7 @@ router.post("/", requireAuth, async (req, res, next) => {
 
     const { buffer, mimeType } = dataUrlToBuffer(input.coverImage);
     const [result] = await pool.execute<ResultSetHeader>(
-      `INSERT INTO articles (title, summary, content, cover_image, cover_image_mime_type, category_id, author_id)
+      `INSERT INTO articles (title, summary, content, cover, cover_mime, category_id, author_id)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [input.title, input.summary, input.content, buffer, mimeType, input.categoryId, req.user!.id]
     );
@@ -243,8 +243,8 @@ router.put("/:id", requireAuth, async (req, res, next) => {
        SET title = ?,
            summary = ?,
            content = ?,
-           cover_image = ?,
-           cover_image_mime_type = ?,
+           cover = ?,
+           cover_mime = ?,
            category_id = ?
        WHERE id = ?`,
       [input.title, input.summary, input.content, buffer, mimeType, input.categoryId, articleId]
