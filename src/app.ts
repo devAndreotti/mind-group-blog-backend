@@ -5,6 +5,7 @@ import { env } from "./config/env";
 import articleRoutes from "./routes/article.routes";
 import authRoutes from "./routes/auth.routes";
 import categoryRoutes from "./routes/category.routes";
+import dashboardRoutes from "./routes/dashboard.routes";
 import tagRoutes from "./routes/tag.routes";
 import userRoutes from "./routes/user.routes";
 import { pool } from "./database/connection";
@@ -44,6 +45,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/articles", articleRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/tags", tagRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

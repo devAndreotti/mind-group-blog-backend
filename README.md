@@ -94,6 +94,10 @@ Categorias e tags:
 - `GET /api/categories`
 - `GET /api/tags`
 
+Dashboard:
+
+- `GET /api/dashboard`
+
 ## Scripts
 
 ```powershell
