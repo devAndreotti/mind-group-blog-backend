@@ -41,6 +41,10 @@ export const errorHandler = (
     return res.status(400).json({ message: "JSON invalido." });
   }
 
+  if (expected.type === "entity.too.large" || expected.status === 413) {
+    return res.status(413).json({ message: "Payload muito grande." });
+  }
+
   if (expected.code === "ER_DUP_ENTRY") {
     return res.status(409).json({ message: "Registro duplicado." });
   }

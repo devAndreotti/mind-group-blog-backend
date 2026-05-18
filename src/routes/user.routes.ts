@@ -7,6 +7,7 @@ import { readObject, readOptionalString, readRequiredString } from "../utils/val
 
 const router = Router();
 const MAX_AVATAR_CHARS = 2_097_152;
+const ALLOWED_AVATAR_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 
 type UserRow = RowDataPacket & DbUser;
 
@@ -46,8 +47,13 @@ const readAvatarInput = (input: Record<string, unknown>) => {
     throw new HttpError(400, "Avatar deve estar em formato data URL base64.");
   }
 
+  const mimeType = match[1].toLowerCase();
+  if (!ALLOWED_AVATAR_MIME_TYPES.has(mimeType)) {
+    throw new HttpError(400, "Formato de imagem não suportado. Use PNG, JPEG ou WebP.");
+  }
+
   return {
-    mimeType: match[1].toLowerCase(),
+    mimeType,
     buffer: Buffer.from(match[2], "base64")
   };
 };
