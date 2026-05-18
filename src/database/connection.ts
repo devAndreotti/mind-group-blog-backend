@@ -16,6 +16,8 @@ export type DbUser = {
   name: string;
   email: string;
   password_hash: string;
+  avatar: Buffer | null;
+  avatar_mime_type: string | null;
   bio: string | null;
   role: "admin" | "member";
   created_at: Date;

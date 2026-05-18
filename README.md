@@ -78,7 +78,7 @@ Auth:
 Usuarios:
 
 - `GET /api/users/me`
-- `PUT /api/users/me`
+- `PUT /api/users/me` (`name`, `email`, `bio`, `avatar` opcional em data URL base64)
 - `GET /api/users/:id`
 
 Artigos:
