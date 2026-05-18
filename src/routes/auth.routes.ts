@@ -127,4 +127,45 @@ router.post("/forgot-password", async (req, res, next) => {
   }
 });
 
+router.post("/reset-password", async (req, res, next) => {
+  try {
+    const input = readObject(req.body);
+    const token = readRequiredString(input, "token", "Token");
+    const passwordValue = readRequiredString(input, "password", "Senha");
+    const confirmPassword = readRequiredString(input, "confirmPassword", "Confirmacao de senha");
+
+    assert(passwordValue === confirmPassword, 400, "As senhas nao conferem.");
+    assert(passwordValue.length >= 8, 400, "Senha deve ter pelo menos 8 caracteres.");
+    assert(passwordValue.length <= 128, 400, "Senha deve ter no maximo 128 caracteres.");
+
+    const [users] = await pool.execute<UserRow[]>(
+      `SELECT id
+       FROM users
+       WHERE reset_token = ?
+         AND reset_token_expires >= NOW()
+       LIMIT 1`,
+      [token]
+    );
+    const user = users[0];
+
+    if (!user) {
+      throw new HttpError(400, "Token inválido ou expirado.");
+    }
+
+    const passwordHash = await bcrypt.hash(passwordValue, 10);
+    await pool.execute(
+      `UPDATE users
+       SET password_hash = ?,
+           reset_token = NULL,
+           reset_token_expires = NULL
+       WHERE id = ?`,
+      [passwordHash, user.id]
+    );
+
+    res.json({ message: "Senha redefinida com sucesso." });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;
