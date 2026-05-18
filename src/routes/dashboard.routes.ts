@@ -17,13 +17,12 @@ router.get("/", requireAuth, async (req, res, next) => {
          a.id,
          a.title,
          a.summary,
-         a.published_at AS created_at,
-         a.updated_at,
+         a.published_at,
          c.name AS category_name
        FROM articles a
        LEFT JOIN categories c ON c.id = a.category_id
        WHERE a.author_id = ?
-       ORDER BY created_at DESC
+       ORDER BY a.published_at DESC
        LIMIT 5`,
       [req.user!.id]
     );
@@ -34,8 +33,10 @@ router.get("/", requireAuth, async (req, res, next) => {
         id: article.id,
         title: article.title,
         summary: article.summary,
-        created_at: article.created_at,
-        updated_at: article.updated_at,
+        created_at: article.published_at,
+        updated_at: article.published_at,
+        publishedAt: article.published_at,
+        updatedAt: article.published_at,
         category: article.category_name ? { name: article.category_name } : null
       }))
     });
